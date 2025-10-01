@@ -1,5 +1,54 @@
+import networkx as nx
+import matplotlib.pyplot as plt
+
 balanced_tree = [(1, 13), (2, 8), (3, 17), (4, 1), (5, 11), (6, 15), (7, 25), (9, 6), (14, 22), (15, 27)]
 not_balanced_tree = [(1, 10), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1), (16, 1), (13, 1)]
+test_tree = [(1, 10), (2, 7), (3, 15), (4, 8), (5, 6), (6, 12), (7, 18), (10, 1), (12, 2), (13, 3), (15, 4)]
+
+tree = test_tree
+
+
+def graph_tree(tree):
+    G = nx.Graph()
+
+    nodes = list(map(lambda x: x[0], tree))
+    values = list(map(lambda x: x[1], tree))
+
+    # Add nodes
+    G.add_nodes_from(values)
+
+    weights = []
+    max_depth = max(nodes)
+    i = 1
+    while 2 ** i <= max_depth:
+        i += 1
+    max_depth = i
+
+    for i in range(max_depth):
+        for j in range(2 ** i):
+            if 2 ** i + j in nodes:
+                if 2 * (2 ** i + j) in nodes:
+                    q1 = values[nodes.index((2 ** i + j))]
+                    q2 = values[nodes.index(2 * (2 ** i + j))]
+                    weights.append((q1, q2))
+                if 2 * (2 ** i + j) + 1 in nodes:
+                    q1 = values[nodes.index((2 ** i + j))]
+                    q2 = values[nodes.index(2 * (2 ** i + j) + 1)]
+                    weights.append((q1, q2))
+
+    poses = {}
+    for i in range(max_depth + 1):
+        for j in range(2 ** i):
+            if (2 ** i + j) in nodes:
+                if i == 0:
+                    poses[values[nodes.index((2 ** i + j))]] = (0, -i * 100)
+                else:
+                    poses[values[nodes.index((2 ** i + j))]] = ((j - (2 ** i - 1) / 2) * 100, -i * 100)
+
+    # Add edges
+    G.add_edges_from(weights)
+    nx.draw(G, poses, with_labels=True, node_color='skyblue', node_size=1000, font_size=10, font_weight='bold')
+    plt.title("Tree")
 
 
 def check_if_balanced(tree):
@@ -53,15 +102,18 @@ def prepare_tree(tree):
     return new_tree
 
 
-prepared_balanced_tree = prepare_tree(balanced_tree)
-answer = check_if_balanced(prepared_balanced_tree)
+prepared_tree = prepare_tree(tree)
+answer = check_if_balanced(prepared_tree)
 if answer:
     print("Balanced")
 else:
     print("Not balanced")
 
-answer2 = check_order(prepared_balanced_tree)
+answer2 = check_order(prepared_tree)
 if answer2:
     print("Ordered")
 else:
     print("Not ordered")
+
+graph_tree(tree)
+plt.show()
