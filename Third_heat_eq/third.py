@@ -124,6 +124,12 @@ def enforce_dirichlet_system(A, b, dirichlet_nodes):
     return A.tocsr(), b
 
 
+def theory_f(point, t, alpha, s):
+    if t == 0:
+        return 0
+    return 0.5 * source / alpha / np.sqrt(np.pi * t) * np.exp((-point[0] ** 2 - point[1] ** 2) / 4. / alpha ** 2 / t)
+
+
 def solve_heat_on_circle(alpha=1.0, S=1.0, R=1.0, num_boundary=60, area_max=0.001,
                          dt=1e-3, t_end=0.05, plot_every=10, source=1):
     # 1) generate mesh using your triangulation routine
@@ -174,12 +180,22 @@ def solve_heat_on_circle(alpha=1.0, S=1.0, R=1.0, num_boundary=60, area_max=0.00
 
     # initial condition u0 = 0 everywhere
     u = np.zeros(nverts)
-    u[tri_nodes] = source / len(tri_nodes)
+    source = source / len(tri_nodes)
+    u[tri_nodes] = source
+    u_theory = np.array(list(map(lambda point: theory_f(point, 0, alpha, source), verts)), dtype=np.float64)
+    u_theory[tri_nodes] = source
+    print(u[tri_nodes])
+    print(u_theory[tri_nodes])
 
     times = np.arange(0, t_end + 0.5 * dt, dt)
     snapshots = []
+    theory_snapshots = []
+    razn_snapshots = []
     snap_times = []
     snapshots.append(u.copy())
+    theory_snapshots.append(u_theory.copy())
+    razn_snapshots.append(abs(u - u_theory))
+
     snap_times.append(0)
     for k, t in enumerate(times[1:], start=1):
         rhs = M.dot(u) + dt * F
@@ -187,8 +203,12 @@ def solve_heat_on_circle(alpha=1.0, S=1.0, R=1.0, num_boundary=60, area_max=0.00
         rhs[dirichlet_nodes] = 0.0
         # solve
         u = solver(rhs)
+        u_theory = np.array(list(map(lambda point: theory_f(point, t, alpha, source), verts)))
+
         if k % plot_every == 0 or k == len(times) - 1:
             snapshots.append(u.copy())
+            theory_snapshots.append(u_theory.copy())
+            razn_snapshots.append(abs(u - u_theory))
             snap_times.append(t)
             print(f"t = {t:.4f} (step {k}/{len(times) - 1})")
 
@@ -207,6 +227,28 @@ def solve_heat_on_circle(alpha=1.0, S=1.0, R=1.0, num_boundary=60, area_max=0.00
         plt.savefig(os.path.join("Pics", f"t={tt:.4f}.png"))
         plt.close("all")
 
+    for i, (uu, tt) in enumerate(zip(theory_snapshots, snap_times)):
+        fig, ax = plt.subplots(1, 1)
+        fig.suptitle("Heat equation with center delta source (P1 FEM, Backward Euler)")
+        tpc = ax.tripcolor(triang, uu, shading='flat')
+        ax.set_title(f"t = {tt:.4f}")
+        ax.set_aspect('equal')
+        plt.colorbar(tpc, ax=ax)
+        plt.tight_layout()
+        plt.savefig(os.path.join("Pics_theory", f"t={tt:.4f}.png"))
+        plt.close("all")
+
+    for i, (uu, tt) in enumerate(zip(razn_snapshots, snap_times)):
+        fig, ax = plt.subplots(1, 1)
+        fig.suptitle("Heat equation with center delta source (P1 FEM, Backward Euler)")
+        tpc = ax.tripcolor(triang, uu, shading='flat')
+        ax.set_title(f"t = {tt:.4f}")
+        ax.set_aspect('equal')
+        plt.colorbar(tpc, ax=ax)
+        plt.tight_layout()
+        plt.savefig(os.path.join("Pics_razn", f"t={tt:.4f}.png"))
+        plt.close("all")
+
     steps = []
     for file in os.listdir("Pics"):
         steps.append(float(file[:-4].split('=')[1]))
@@ -216,6 +258,24 @@ def solve_heat_on_circle(alpha=1.0, S=1.0, R=1.0, num_boundary=60, area_max=0.00
         images.append(imread(os.path.join(f"Pics", f"t={step:.4f}.png")))
     imageio.mimsave(f"Res.gif", images)
 
+    steps = []
+    for file in os.listdir("Pics_theory"):
+        steps.append(float(file[:-4].split('=')[1]))
+    steps.sort()
+    images = []
+    for step in steps:
+        images.append(imread(os.path.join(f"Pics_theory", f"t={step:.4f}.png")))
+    imageio.mimsave(f"Res_theory.gif", images)
+
+    steps = []
+    for file in os.listdir("Pics_theory"):
+        steps.append(float(file[:-4].split('=')[1]))
+    steps.sort()
+    images = []
+    for step in steps:
+        images.append(imread(os.path.join(f"Pics_razn", f"t={step:.4f}.png")))
+    imageio.mimsave(f"Res_razn.gif", images)
+
     # Return solution arrays in case caller wants numeric data
     return verts, tris, times, snapshots
 
@@ -223,11 +283,11 @@ def solve_heat_on_circle(alpha=1.0, S=1.0, R=1.0, num_boundary=60, area_max=0.00
 if __name__ == "__main__":
     # parameters (you can change these)
     alpha = 1.0  # diffusivity
-    S = 0  # total strength of delta source
+    S = 10  # total strength of delta source
     source = 1.
 
-    R = 1.0 # max side of triangle for meshing
-    num_boundary = 80 # number of points on the boundary
+    R = 5. # max side of triangle for meshing
+    num_boundary = 100 # number of points on the boundary
     area_max = 0.0008 # max area for meshing
 
     dt = 1e-3
